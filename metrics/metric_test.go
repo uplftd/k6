@@ -62,7 +62,7 @@ func TestAddSubmetric(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.NotNil(t, sm)
-			assert.EqualValues(t, expected.tags, sm.Tags.tags)
+			assert.EqualValues(t, expected.tags, sm.Tags.CloneTags())
 		})
 	}
 }

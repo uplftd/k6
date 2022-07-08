@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mailru/easyjson/jwriter"
+	"github.com/mstoykov/atlas"
 )
 
 // A Sample is a single measurement.
@@ -179,7 +180,7 @@ func parsePercentile(stat string) (float64, error) {
 // All methods should not panic, even if they are called on a nil pointer.
 //easyjson:skip
 type SampleTags struct {
-	tags map[string]string
+	n    *atlas.Node
 	json []byte
 }
 
@@ -189,14 +190,16 @@ func (st *SampleTags) Get(key string) (string, bool) {
 	if st == nil {
 		return "", false
 	}
-	val, ok := st.tags[key]
-	return val, ok
+	return st.n.ValueByKey(key)
 }
 
 // IsEmpty checks for a nil pointer or zero tags.
 // It's necessary because of this envconfig issue: https://github.com/kelseyhightower/envconfig/issues/113
 func (st *SampleTags) IsEmpty() bool {
-	return st == nil || len(st.tags) == 0
+	if st == nil || st.n == nil {
+		return true
+	}
+	return st.n.IsRoot()
 }
 
 // IsEqual tries to compare two tag sets with maximum efficiency.
@@ -204,32 +207,20 @@ func (st *SampleTags) IsEqual(other *SampleTags) bool {
 	if st == other {
 		return true
 	}
-	if st == nil || other == nil || len(st.tags) != len(other.tags) {
+	if st == nil || other == nil {
 		return false
 	}
-	for k, v := range st.tags {
-		if otherv, ok := other.tags[k]; !ok || v != otherv {
-			return false
-		}
-	}
-	return true
+	return st.n == other.n
 }
 
 func (st *SampleTags) Contains(other *SampleTags) bool {
 	if st == other || other == nil {
 		return true
 	}
-	if st == nil || len(st.tags) < len(other.tags) {
+	if st == nil {
 		return false
 	}
-
-	for k, v := range other.tags {
-		if myv, ok := st.tags[k]; !ok || myv != v {
-			return false
-		}
-	}
-
-	return true
+	return st.n.Contains(other.n)
 }
 
 // MarshalJSON serializes SampleTags to a JSON string and caches
@@ -243,7 +234,7 @@ func (st *SampleTags) MarshalJSON() ([]byte, error) {
 	if st.json != nil {
 		return st.json, nil
 	}
-	res, err := json.Marshal(st.tags)
+	res, err := json.Marshal(st.n.Path())
 	if err != nil {
 		return res, err
 	}
@@ -255,7 +246,7 @@ func (st *SampleTags) MarshalJSON() ([]byte, error) {
 func (st *SampleTags) MarshalEasyJSON(w *jwriter.Writer) {
 	w.RawByte('{')
 	first := true
-	for k, v := range st.tags {
+	for k, v := range st.n.Path() {
 		if first {
 			first = false
 		} else {
@@ -271,9 +262,19 @@ func (st *SampleTags) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalJSON deserializes SampleTags from a JSON string.
 func (st *SampleTags) UnmarshalJSON(data []byte) error {
 	if st == nil {
-		*st = SampleTags{}
+		*st = SampleTags{n: rootTagNode, json: nil}
 	}
-	return json.Unmarshal(data, &st.tags)
+	var raw map[string]string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if st.n == nil {
+		st.n = rootTagNode
+	}
+	for k, v := range raw {
+		st.n = st.n.AddLink(k, v)
+	}
+	return nil
 }
 
 // CloneTags copies the underlying set of a sample tags and
@@ -282,12 +283,12 @@ func (st *SampleTags) CloneTags() map[string]string {
 	if st == nil {
 		return map[string]string{}
 	}
-	res := make(map[string]string, len(st.tags))
-	for k, v := range st.tags {
-		res[k] = v
-	}
-	return res
+	return st.n.Path()
 }
+
+// rootTagNode is the global Node.
+// TODO: move to a not global place if consensus is achieved
+var rootTagNode = atlas.New() //nolint:gochecknoglobals
 
 // NewSampleTags *copies* the supplied tag set and returns a new SampleTags
 // instance with the key-value pairs from it.
@@ -295,12 +296,11 @@ func NewSampleTags(data map[string]string) *SampleTags {
 	if len(data) == 0 {
 		return nil
 	}
-
-	tags := map[string]string{}
+	st := &SampleTags{n: rootTagNode, json: nil}
 	for k, v := range data {
-		tags[k] = v
+		st.n = st.n.AddLink(k, v)
 	}
-	return &SampleTags{tags: tags}
+	return st
 }
 
 // IntoSampleTags "consumes" the passed map and creates a new SampleTags
@@ -312,7 +312,7 @@ func IntoSampleTags(data *map[string]string) *SampleTags {
 		return nil
 	}
 
-	res := SampleTags{tags: *data}
+	st := NewSampleTags(*data)
 	*data = nil
-	return &res
+	return st
 }

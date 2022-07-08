@@ -53,6 +53,14 @@ func TestSampleTags(t *testing.T) {
 	assert.False(t, tags.Contains(IntoSampleTags(&map[string]string{"key3": "val1"})))
 	assert.False(t, tags.Contains(IntoSampleTags(&map[string]string{"nonexistent_key": ""})))
 	assert.Equal(t, tagMap, tags.CloneTags())
+}
+
+func TestSampleTagsJSON(t *testing.T) {
+	t.Parallel()
+
+	var nilTags *SampleTags
+	tagMap := map[string]string{"key1": "val1", "key2": "val2"}
+	tags := NewSampleTags(tagMap)
 
 	assert.Nil(t, tags.json) // No cache
 	tagsJSON, err := json.Marshal(tags)
