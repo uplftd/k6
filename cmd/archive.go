@@ -30,6 +30,7 @@ type cmdArchive struct {
 	gs *globalState
 
 	archiveOut string
+	skipEnv    bool
 }
 
 func (c *cmdArchive) run(cmd *cobra.Command, args []string) error {
@@ -55,6 +56,12 @@ func (c *cmdArchive) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if c.skipEnv {
+		c.gs.logger.Info("environment variables will be excluded from the archive")
+
+		arc.WipeEnv()
+	}
+
 	err = arc.Write(f)
 	if cerr := f.Close(); err == nil && cerr != nil {
 		err = cerr
@@ -68,6 +75,8 @@ func (c *cmdArchive) flagSet() *pflag.FlagSet {
 	flags.AddFlagSet(optionFlagSet())
 	flags.AddFlagSet(runtimeOptionFlagSet(false))
 	flags.StringVarP(&c.archiveOut, "archive-out", "O", c.archiveOut, "archive output filename")
+	flags.BoolVarP(&c.skipEnv, "skip-env", "", false, "exclude from the archive environment variables passed with `--env`")
+
 	return flags
 }
 

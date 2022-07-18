@@ -380,6 +380,11 @@ func (arc *Archive) Write(out io.Writer) error {
 	return w.Close()
 }
 
+// WipeEnv wipes stored environment variables from the archive
+func (arc *Archive) WipeEnv() {
+	arc.Env = map[string]string{}
+}
+
 func (arc *Archive) json() ([]byte, error) {
 	buffer := &bytes.Buffer{}
 	encoder := json.NewEncoder(buffer)
