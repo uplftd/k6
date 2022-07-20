@@ -21,15 +21,16 @@
 package main
 
 import (
+	"log"
 	"go.k6.io/k6/cmd"
     "github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func main() {
-	statsd, err := statsd.New("127.0.0.1:8125", WithMaxBytesPerPayload(4096))
+    _, err := statsd.New("127.0.0.1:8126")
     if err != nil {
         log.Fatal(err)
     }
-	
+
 	cmd.Execute()
 }
